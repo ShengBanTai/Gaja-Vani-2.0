@@ -96,6 +96,7 @@ const InteractiveMarker = ({ position, children, ...props }) => {
     return (
         <Marker
             position={position}
+            {...props}
             eventHandlers={{
                 click: () => {
                     map.flyTo(position, 16, { // Zoom Level 16 for focus
@@ -106,7 +107,6 @@ const InteractiveMarker = ({ position, children, ...props }) => {
                 },
                 ...props.eventHandlers
             }}
-            {...props}
         >
             {children}
         </Marker>
@@ -118,6 +118,7 @@ const InteractiveCircle = ({ center, children, ...props }) => {
     return (
         <Circle
             center={center}
+            {...props}
             eventHandlers={{
                 click: (e) => {
                     // Stop propogation if needed, but flyTo is key
@@ -129,7 +130,6 @@ const InteractiveCircle = ({ center, children, ...props }) => {
                 },
                 ...props.eventHandlers
             }}
-            {...props}
         >
             {children}
         </Circle>
@@ -141,7 +141,7 @@ const MapDisplay = ({ baseLayer, showHeatmap, showSightings, data, userLocation,
 
     return (
         <div className="map-wrapper" style={{ height: '100%', width: '100%', borderRadius: '16px', overflow: 'hidden', border: '1px solid var(--color-border)' }}>
-            <MapContainer center={position} zoom={11} style={{ height: '100%', width: '100%' }} zoomControl={false}>
+            <MapContainer center={position} zoom={11} style={{ height: '100%', width: '100%' }} zoomControl={true}>
                 {/* BASE LAYERS */}
                 {baseLayer === 'satellite' ? (
                     <>
@@ -177,14 +177,14 @@ const MapDisplay = ({ baseLayer, showHeatmap, showSightings, data, userLocation,
                 {/* User Location Marker & Circle */}
                 {userLocation && (
                     <>
-                        <Marker position={[userLocation.lat, userLocation.lng]} icon={RedPointerIcon}>
+                        <InteractiveMarker position={[userLocation.lat, userLocation.lng]} icon={RedPointerIcon}>
                             <Popup>
                                 <div style={{ textAlign: 'center' }}>
                                     <strong>YOU ARE HERE</strong><br />
                                     Accuracy: ±{Math.round(userLocation.accuracy)}m
                                 </div>
                             </Popup>
-                        </Marker>
+                        </InteractiveMarker>
                         <Circle
                             center={[userLocation.lat, userLocation.lng]}
                             radius={userLocation.accuracy}
