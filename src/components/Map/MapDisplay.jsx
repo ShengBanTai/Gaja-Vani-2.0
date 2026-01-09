@@ -91,7 +91,7 @@ function MapEffects({ viewMode, userLocation, isFollowing, onMapDrag, data }) {
     return null;
 }
 
-const MapDisplay = ({ baseLayer, showHeatmap, showSightings, data, userLocation, isFollowing, onMapDrag }) => {
+const MapDisplay = ({ baseLayer, showHeatmap, showSightings, data, userLocation, isFollowing, onMapDrag, resetZoomTrigger }) => {
     const position = [12.3366, 76.6187]; // VVCE M Block
 
     return (
@@ -126,6 +126,7 @@ const MapDisplay = ({ baseLayer, showHeatmap, showSightings, data, userLocation,
                     isFollowing={isFollowing}
                     onMapDrag={onMapDrag}
                     data={data}
+                    resetZoomTrigger={resetZoomTrigger}
                 />
 
                 {/* User Location Marker & Circle */}

@@ -107,6 +107,12 @@ const DashboardLayout = () => {
         setLayers(prev => ({ ...prev, [layerName]: !prev[layerName] }));
     };
 
+    const [resetZoomTrigger, setResetZoomTrigger] = useState(0);
+
+    const handleResetView = () => {
+        setResetZoomTrigger(prev => prev + 1);
+    };
+
     return (
         <div className="dashboard-layout">
             {/* Header */}
@@ -129,6 +135,22 @@ const DashboardLayout = () => {
                 </div>
 
                 <div className="view-toggle" style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
+
+                    <button
+                        onClick={handleResetView}
+                        title="Fit All Data on Screen"
+                        style={{
+                            padding: '0.4rem',
+                            borderRadius: '6px',
+                            border: '1px solid rgba(255,255,255,0.3)',
+                            background: 'rgba(255,255,255,0.1)',
+                            color: 'white',
+                            cursor: 'pointer',
+                        }}
+                    >
+                        ⛶ Fit
+                    </button>
+
                     {/* BASE LAYER CONTROLS */}
                     <div style={{ background: 'rgba(255,255,255,0.1)', padding: '4px', borderRadius: '8px', display: 'flex', gap: '4px' }}>
                         <button
@@ -178,7 +200,7 @@ const DashboardLayout = () => {
                                 display: 'flex', alignItems: 'center', gap: '5px'
                             }}
                         >
-                            {layers.sightings ? '👁️' : '⚪'} Sightings
+                            {layers.sightings ? '👁️' : '⚪'}
                         </button>
                         <button
                             onClick={() => toggleLayer('heatmap')}
@@ -193,7 +215,7 @@ const DashboardLayout = () => {
                                 display: 'flex', alignItems: 'center', gap: '5px'
                             }}
                         >
-                            {layers.heatmap ? '🔥' : '⚪'} Danger Zones
+                            {layers.heatmap ? '🔥' : '⚪'}
                         </button>
                     </div>
                 </div>
@@ -211,6 +233,7 @@ const DashboardLayout = () => {
                             userLocation={userLocation}
                             isFollowing={isFollowing}
                             onMapDrag={() => setIsFollowing(false)}
+                            resetZoomTrigger={resetZoomTrigger}
                         />
                     </div>
 
