@@ -91,6 +91,51 @@ function MapEffects({ viewMode, userLocation, isFollowing, onMapDrag, data }) {
     return null;
 }
 
+const InteractiveMarker = ({ position, children, ...props }) => {
+    const map = useMap();
+    return (
+        <Marker
+            position={position}
+            eventHandlers={{
+                click: () => {
+                    map.flyTo(position, 16, { // Zoom Level 16 for focus
+                        animate: true,
+                        duration: 1.5,
+                        easeLinearity: 0.25
+                    });
+                },
+                ...props.eventHandlers
+            }}
+            {...props}
+        >
+            {children}
+        </Marker>
+    );
+};
+
+const InteractiveCircle = ({ center, children, ...props }) => {
+    const map = useMap();
+    return (
+        <Circle
+            center={center}
+            eventHandlers={{
+                click: (e) => {
+                    // Stop propogation if needed, but flyTo is key
+                    map.flyTo(center, 15, { // Zoom Level 15 for zones (usually larger)
+                        animate: true,
+                        duration: 1.5
+                    });
+                    e.target.openPopup();
+                },
+                ...props.eventHandlers
+            }}
+            {...props}
+        >
+            {children}
+        </Circle>
+    );
+};
+
 const MapDisplay = ({ baseLayer, showHeatmap, showSightings, data, userLocation, isFollowing, onMapDrag, resetZoomTrigger }) => {
     const position = [12.3366, 76.6187]; // VVCE M Block
 
@@ -169,7 +214,7 @@ const MapDisplay = ({ baseLayer, showHeatmap, showSightings, data, userLocation,
 
                 {/* Elephant Markers */}
                 {showSightings && data.sightings.map(sighting => (
-                    <Marker key={sighting.id} position={[sighting.lat, sighting.lng]}>
+                    <InteractiveMarker key={sighting.id} position={[sighting.lat, sighting.lng]}>
                         <Popup className="glass-popup">
                             <div style={{ color: 'black' }}>
                                 <strong>{sighting.name}</strong><br />
@@ -177,12 +222,12 @@ const MapDisplay = ({ baseLayer, showHeatmap, showSightings, data, userLocation,
                                 Loc: {sighting.proximity}
                             </div>
                         </Popup>
-                    </Marker>
+                    </InteractiveMarker>
                 ))}
 
                 {/* Heatmap / Danger Zones */}
                 {showHeatmap && data.dangerZones.map(zone => (
-                    <Circle
+                    <InteractiveCircle
                         key={zone.id}
                         center={[zone.lat, zone.lng]}
                         pathOptions={{
@@ -197,7 +242,7 @@ const MapDisplay = ({ baseLayer, showHeatmap, showSightings, data, userLocation,
                         }}
                     >
                         <Popup>Danger Zone: {zone.intensity} Intensity</Popup>
-                    </Circle>
+                    </InteractiveCircle>
                 ))}
             </MapContainer>
         </div>
