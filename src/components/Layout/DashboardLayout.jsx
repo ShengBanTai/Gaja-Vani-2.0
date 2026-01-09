@@ -7,7 +7,11 @@ import { LayoutGrid, Map as MapIcon, Settings, Navigation, AlertTriangle, CloudR
 const DashboardLayout = () => {
 
     const { sightings, incidents, dangerZones, villageStatus, loading } = useDashboardData();
-    const [viewMode, setViewMode] = useState('normal'); // 'normal' | 'heatmap'
+    const [baseLayer, setBaseLayer] = useState('satellite'); // 'satellite' | 'street'
+    const [layers, setLayers] = useState({
+        sightings: true,
+        heatmap: false
+    });
     const [liveSightings, setLiveSightings] = useState([]);
     const [showReportModal, setShowReportModal] = useState(false);
     const [showSettings, setShowSettings] = useState(false);
@@ -99,6 +103,10 @@ const DashboardLayout = () => {
     // Mobile Sidebar State
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
+    const toggleLayer = (layerName) => {
+        setLayers(prev => ({ ...prev, [layerName]: !prev[layerName] }));
+    };
+
     return (
         <div className="dashboard-layout">
             {/* Header */}
@@ -120,37 +128,74 @@ const DashboardLayout = () => {
                     </div>
                 </div>
 
-                <div className="view-toggle" style={{ display: 'flex', gap: '0.5rem' }}>
-                    <button
-                        onClick={() => setViewMode('normal')}
-                        style={{
-                            padding: '0.5rem 1rem',
-                            borderRadius: '8px',
-                            border: 'none',
-                            background: viewMode === 'normal' ? 'var(--color-primary)' : 'rgba(255,255,255,0.1)',
-                            color: viewMode === 'normal' ? 'black' : 'white',
-                            cursor: 'pointer',
-                            fontWeight: 'bold',
-                            transition: 'all 0.3s'
-                        }}
-                    >
-                        Normal View
-                    </button>
-                    <button
-                        onClick={() => setViewMode('heatmap')}
-                        style={{
-                            padding: '0.5rem 1rem',
-                            borderRadius: '8px',
-                            border: 'none',
-                            background: viewMode === 'heatmap' ? 'var(--color-accent)' : 'rgba(255,255,255,0.1)',
-                            color: viewMode === 'heatmap' ? 'black' : 'white',
-                            cursor: 'pointer',
-                            fontWeight: 'bold',
-                            transition: 'all 0.3s'
-                        }}
-                    >
-                        Heat Map
-                    </button>
+                <div className="view-toggle" style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                    {/* BASE LAYER CONTROLS */}
+                    <div style={{ background: 'rgba(255,255,255,0.1)', padding: '4px', borderRadius: '8px', display: 'flex', gap: '4px' }}>
+                        <button
+                            onClick={() => setBaseLayer('satellite')}
+                            style={{
+                                padding: '0.4rem 0.8rem',
+                                borderRadius: '6px',
+                                border: 'none',
+                                background: baseLayer === 'satellite' ? 'var(--color-primary)' : 'transparent',
+                                color: baseLayer === 'satellite' ? 'black' : 'white',
+                                cursor: 'pointer',
+                                fontSize: '0.8rem',
+                                fontWeight: 'bold'
+                            }}
+                        >
+                            Satellite
+                        </button>
+                        <button
+                            onClick={() => setBaseLayer('street')}
+                            style={{
+                                padding: '0.4rem 0.8rem',
+                                borderRadius: '6px',
+                                border: 'none',
+                                background: baseLayer === 'street' ? 'var(--color-primary)' : 'transparent',
+                                color: baseLayer === 'street' ? 'black' : 'white',
+                                cursor: 'pointer',
+                                fontSize: '0.8rem',
+                                fontWeight: 'bold'
+                            }}
+                        >
+                            Street
+                        </button>
+                    </div>
+
+                    {/* OVERLAY CONTROLS */}
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <button
+                            onClick={() => toggleLayer('sightings')}
+                            style={{
+                                padding: '0.4rem 0.8rem',
+                                borderRadius: '6px',
+                                border: '1px solid var(--color-primary)',
+                                background: layers.sightings ? 'rgba(0, 255, 65, 0.2)' : 'transparent',
+                                color: 'white',
+                                cursor: 'pointer',
+                                fontSize: '0.8rem',
+                                display: 'flex', alignItems: 'center', gap: '5px'
+                            }}
+                        >
+                            {layers.sightings ? '👁️' : '⚪'} Sightings
+                        </button>
+                        <button
+                            onClick={() => toggleLayer('heatmap')}
+                            style={{
+                                padding: '0.4rem 0.8rem',
+                                borderRadius: '6px',
+                                border: '1px solid var(--color-danger)',
+                                background: layers.heatmap ? 'rgba(255, 0, 0, 0.2)' : 'transparent',
+                                color: 'white',
+                                cursor: 'pointer',
+                                fontSize: '0.8rem',
+                                display: 'flex', alignItems: 'center', gap: '5px'
+                            }}
+                        >
+                            {layers.heatmap ? '🔥' : '⚪'} Danger Zones
+                        </button>
+                    </div>
                 </div>
             </header>
 
@@ -159,7 +204,9 @@ const DashboardLayout = () => {
                 <div className="map-section glass-panel">
                     <div className="map-wrapper">
                         <MapDisplay
-                            viewMode={viewMode}
+                            baseLayer={baseLayer}
+                            showHeatmap={layers.heatmap}
+                            showSightings={layers.sightings}
                             data={{ sightings: liveSightings, dangerZones }}
                             userLocation={userLocation}
                             isFollowing={isFollowing}

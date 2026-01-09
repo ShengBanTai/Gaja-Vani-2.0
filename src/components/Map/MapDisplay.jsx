@@ -91,36 +91,37 @@ function MapEffects({ viewMode, userLocation, isFollowing, onMapDrag, data }) {
     return null;
 }
 
-const MapDisplay = ({ viewMode, data, userLocation, isFollowing, onMapDrag }) => {
+const MapDisplay = ({ baseLayer, showHeatmap, showSightings, data, userLocation, isFollowing, onMapDrag }) => {
     const position = [12.3366, 76.6187]; // VVCE M Block
 
     return (
         <div className="map-wrapper" style={{ height: '100%', width: '100%', borderRadius: '16px', overflow: 'hidden', border: '1px solid var(--color-border)' }}>
             <MapContainer center={position} zoom={11} style={{ height: '100%', width: '100%' }} zoomControl={false}>
-                {/* VIEW MODE TILES */}
-                {viewMode === 'normal' ? (
+                {/* BASE LAYERS */}
+                {baseLayer === 'satellite' ? (
                     <>
-                        {/* Satellite Imagery */}
                         <TileLayer
                             url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
                             attribution='Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
                         />
-                        {/* Labels Overlay (Light for visibility) */}
                         <TileLayer
                             url="https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png"
                             attribution='&copy; <a href="https://carto.com/attributions">CARTO</a>'
+                            zIndex={100}
                         />
                     </>
                 ) : (
-                    /* Dark Matter for Heatmap */
-                    <TileLayer
-                        url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-                        attribution='&copy; <a href="https://carto.com/attributions">CARTO</a>'
-                    />
+                    <>
+                        {/* Street View (CartoDB Voyager or similar clean map) */}
+                        <TileLayer
+                            url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
+                            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+                        />
+                    </>
                 )}
 
                 <MapEffects
-                    viewMode={viewMode}
+                    viewMode={baseLayer} // Re-using prop name for dependency tracking, though logic inside might change if needed
                     userLocation={userLocation}
                     isFollowing={isFollowing}
                     onMapDrag={onMapDrag}
@@ -163,8 +164,10 @@ const MapDisplay = ({ viewMode, data, userLocation, isFollowing, onMapDrag }) =>
                     </>
                 )}
 
-                {/* Normal View Layer: Elephant Markers */}
-                {viewMode === 'normal' && data.sightings.map(sighting => (
+                {/* VISUAL LAYERS (Independent) */}
+
+                {/* Elephant Markers */}
+                {showSightings && data.sightings.map(sighting => (
                     <Marker key={sighting.id} position={[sighting.lat, sighting.lng]}>
                         <Popup className="glass-popup">
                             <div style={{ color: 'black' }}>
@@ -176,8 +179,8 @@ const MapDisplay = ({ viewMode, data, userLocation, isFollowing, onMapDrag }) =>
                     </Marker>
                 ))}
 
-                {/* Heatmap View Layer: Danger Zones */}
-                {viewMode === 'heatmap' && data.dangerZones.map(zone => (
+                {/* Heatmap / Danger Zones */}
+                {showHeatmap && data.dangerZones.map(zone => (
                     <Circle
                         key={zone.id}
                         center={[zone.lat, zone.lng]}
