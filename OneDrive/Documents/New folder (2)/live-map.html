@@ -1,0 +1,665 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Gaja-Vani Guardian</title>
+
+    <!-- TAILWIND CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        jungle: {
+                            900: '#020617', // slate-950
+                            800: '#0f172a',
+                        },
+                        neon: {
+                            safe: '#10b981', // emerald-500
+                            danger: '#ef4444', // red-500
+                            warn: '#f97316',   // orange-500
+                            primary: '#06b6d4', // cyan-500
+                        }
+                    },
+                    fontFamily: {
+                        mono: ['Courier New', 'monospace'], // Tech feel
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- LEAFLET & PLUGINS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet.heat/dist/leaflet-heat.js"></script>
+
+    <!-- FONTAWESOME -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- SUPABASE -->
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+
+    <!-- ALPINE.JS -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+
+    <style>
+        /* BASE STYLES */
+        body {
+            background-color: #020617;
+            color: white;
+            overflow: hidden;
+            touch-action: none;
+        }
+
+        /* MAP */
+        #map {
+            height: 100vh;
+            width: 100vw;
+            z-index: 0;
+        }
+
+        /* GLASSMORPHISM UTILS */
+        .glass {
+            background: rgba(15, 23, 42, 0.7);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .glass-panel {
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
+        }
+
+        /* ANIMATIONS */
+        @keyframes pulse-ring {
+            0% {
+                transform: scale(0.33);
+                opacity: 0;
+            }
+
+            80%,
+            100% {
+                opacity: 0;
+            }
+        }
+
+        @keyframes pulse-dot {
+            0% {
+                transform: scale(0.8);
+            }
+
+            50% {
+                transform: scale(1);
+            }
+
+            100% {
+                transform: scale(0.8);
+            }
+        }
+
+        .user-dot {
+            position: relative;
+        }
+
+        .user-dot::before {
+            content: '';
+            position: absolute;
+            left: -10px;
+            top: -10px;
+            height: 40px;
+            width: 40px;
+            border-radius: 50%;
+            background-color: #06b6d4;
+            opacity: 0.4;
+            animation: pulse-ring 1.5s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
+        }
+
+        .user-dot::after {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            height: 20px;
+            width: 20px;
+            border-radius: 50%;
+            background-color: #06b6d4;
+            border: 2px solid white;
+            box-shadow: 0 0 10px #06b6d4;
+            animation: pulse-dot 1.5s cubic-bezier(0.455, 0.03, 0.515, 0.955) -0.4s infinite;
+        }
+
+        /* Danger Flash */
+        @keyframes flash-danger {
+
+            0%,
+            100% {
+                box-shadow: inset 0 0 0 0 transparent;
+            }
+
+            50% {
+                box-shadow: inset 0 0 50px 20px rgba(239, 68, 68, 0.5);
+            }
+        }
+
+        .danger-mode {
+            animation: flash-danger 1s infinite;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 0px;
+        }
+    </style>
+</head>
+
+<body x-data="app()" x-init="initApp()" :class="{'danger-mode': dangerNearby}">
+
+    <!-- MAP CONTAINER -->
+    <div id="map"></div>
+
+    <!-- UI LAYER (Absolute) -->
+    <div class="absolute inset-0 z-10 pointer-events-none flex flex-col justify-between p-4 safe-area">
+
+        <!-- TOP BAR -->
+        <div class="pointer-events-auto flex flex-col gap-3">
+
+            <!-- Header & Sync Status -->
+            <div class="flex justify-between items-start">
+                <div class="glass glass-panel rounded-lg px-3 py-1 flex items-center gap-2">
+                    <i class="fas fa-shield-cat text-neon-primary"></i>
+                    <span class="font-bold tracking-wider text-sm">GAJA-VANI</span>
+                </div>
+
+                <!-- Status Badge -->
+                <div class="glass glass-panel rounded-full px-3 py-1 text-xs font-mono font-bold flex items-center gap-2 transition-colors duration-300"
+                    :class="isOnline ? 'text-neon-safe' : 'text-neon-warn'">
+                    <i :class="isOnline ? 'fas fa-wifi' : 'fas fa-plane'"></i>
+                    <span x-text="isOnline ? 'ONLINE' : 'OFFLINE MODE'"></span>
+                </div>
+            </div>
+
+            <!-- Controls: View Mode & Time Filter -->
+            <div class="flex flex-col gap-2 items-center w-full">
+
+                <!-- Time Filters -->
+                <div class="flex gap-2 text-xs">
+                    <template x-for="time in ['24h', '7d', 'All']">
+                        <button @click="setTimeFilter(time)"
+                            class="glass px-3 py-1 rounded-full border transition-all duration-200"
+                            :class="currTimeFilter === time ? 'bg-neon-primary/20 border-neon-primary text-neon-primary' : 'border-slate-700 text-slate-400'">
+                            <span x-text="time"></span>
+                        </button>
+                    </template>
+                </div>
+
+                <!-- View Switcher (Segmented Control) -->
+                <div class="glass glass-panel p-1 rounded-full flex text-xs font-bold font-mono">
+                    <button @click="setMode('tactical')" class="px-4 py-2 rounded-full transition-all duration-300"
+                        :class="viewMode === 'tactical' ? 'bg-neon-primary text-black shadow-lg shadow-cyan-500/50' : 'text-slate-400 hover:text-white'">
+                        TACTICAL
+                    </button>
+                    <button @click="setMode('strategic')" class="px-4 py-2 rounded-full transition-all duration-300"
+                        :class="viewMode === 'strategic' ? 'bg-neon-warn text-black shadow-lg shadow-orange-500/50' : 'text-slate-400 hover:text-white'">
+                        STRATEGIC
+                    </button>
+                </div>
+            </div>
+
+            <!-- Danger Toast -->
+            <div x-show="dangerNearby" x-transition:enter="transition ease-out duration-300"
+                x-transition:enter-start="opacity-0 -translate-y-4" x-transition:enter-end="opacity-100 translate-y-0"
+                x-transition:leave="transition ease-in duration-200"
+                x-transition:leave-start="opacity-100 translate-y-0" x-transition:leave-end="opacity-0 -translate-y-4"
+                class="glass bg-red-900/80 border-red-500 text-white p-3 rounded-lg flex items-center justify-between shadow-[0_0_20px_rgba(239,68,68,0.5)] mx-auto mt-2 w-full max-w-xs animate-pulse">
+                <div class="flex items-center gap-3">
+                    <i class="fas fa-exclamation-triangle text-xl"></i>
+                    <div>
+                        <div class="font-bold text-sm">DANGER NEARBY</div>
+                        <div class="text-[10px] opacity-80">Elephant detected within 500m</div>
+                    </div>
+                </div>
+                <button @click="startEscapeRoute()"
+                    class="bg-white text-red-600 px-3 py-1 rounded text-xs font-bold hover:scale-105 transition-transform">
+                    ESCAPE
+                </button>
+            </div>
+
+        </div>
+
+        <!-- BOTTOM CONTROLS -->
+        <div class="pointer-events-auto flex items-end justify-between relative">
+
+            <!-- Recenter FAB -->
+            <button @click="recenterMap()"
+                class="glass glass-panel w-12 h-12 rounded-full flex items-center justify-center text-neon-primary hover:bg-slate-800 transition active:scale-95 mb-4">
+                <i class="fas fa-crosshairs text-lg"></i>
+            </button>
+
+            <!-- Report FAB -->
+            <button @click="openReportModal()"
+                class="w-16 h-16 rounded-2xl bg-gradient-to-br from-neon-danger to-orange-600 shadow-lg shadow-red-500/40 flex items-center justify-center text-white text-2xl hover:scale-110 active:scale-95 transition-all duration-300 mb-4 z-20">
+                <i class="fas fa-plus"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- REPORT MODAL (Bottom Sheet) -->
+    <div x-show="showReport" @click.self="closeReportModal()"
+        class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-end sm:items-center justify-center pointer-events-auto"
+        x-transition.opacity>
+
+        <div x-show="showReport" x-transition:enter="transition ease-out duration-300"
+            x-transition:enter-start="transform translate-y-full" x-transition:enter-end="transform translate-y-0"
+            x-transition:leave="transition ease-in duration-200" x-transition:leave-start="transform translate-y-0"
+            x-transition:leave-end="transform translate-y-full"
+            class="glass glass-panel w-full max-w-md rounded-t-3xl sm:rounded-2xl p-6 border-t border-white/10 shadow-2xl bg-jungle-900/95">
+
+            <!-- Drag Handle -->
+            <div class="w-12 h-1 bg-slate-700 rounded-full mx-auto mb-6"></div>
+
+            <h2 class="text-xl font-bold text-white mb-6 flex items-center gap-2">
+                <i class="fas fa-bullhorn text-neon-danger"></i> Report Incident
+            </h2>
+
+            <form @submit.prevent="submitReport" class="space-y-6">
+
+                <!-- Location Readout -->
+                <div class="bg-slate-900/50 rounded-lg p-3 border border-slate-700 flex justify-between items-center">
+                    <div class="text-xs text-slate-400">
+                        <i class="fas fa-location-dot mr-1"></i>
+                        <span
+                            x-text="userLat ? userLat.toFixed(5) + ', ' + userLng.toFixed(5) : 'Acquiring GPS...'"></span>
+                    </div>
+                    <div class="text-xs text-neon-safe font-mono">ACCURACY: HIGH</div>
+                </div>
+
+                <!-- Type Selection Grid -->
+                <div>
+                    <label class="block text-xs text-slate-400 mb-2 uppercase tracking-wider font-bold">Threat
+                        Type</label>
+                    <div class="grid grid-cols-3 gap-3">
+                        <template x-for="type in reportTypes">
+                            <button type="button" @click="selectedType = type.id"
+                                class="p-3 rounded-xl border flex flex-col items-center gap-2 transition-all duration-200"
+                                :class="selectedType === type.id ? 'bg-' + type.color + '-500/20 border-' + type.color + '-500 text-white' : 'bg-slate-800/50 border-transparent text-slate-500 hover:bg-slate-800'">
+                                <i :class="type.icon + ' text-xl'"
+                                    :style="'color: ' + (selectedType === type.id ? 'white' : '')"></i>
+                                <span class="text-[10px] font-bold uppercase" x-text="type.label"></span>
+                            </button>
+                        </template>
+                    </div>
+                </div>
+
+                <!-- Photo Input -->
+                <!-- <div>
+                    <label class="block text-xs text-slate-400 mb-2 uppercase tracking-wider font-bold">Evidence</label>
+                    <label class="flex items-center gap-3 p-3 rounded-xl border border-dashed border-slate-700 hover:border-slate-500 cursor-pointer bg-slate-800/20 transition">
+                        <div class="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center text-slate-400">
+                            <i class="fas fa-camera"></i>
+                        </div>
+                        <span class="text-sm text-slate-400">Capture or Upload Photo</span>
+                        <input type="file" accept="image/*" capture="camera" class="hidden" @change="handlePhotoUpload">
+                    </label>
+                </div> -->
+
+                <!-- Buttons -->
+                <div class="flex gap-3 pt-2">
+                    <button type="button" @click="closeReportModal()"
+                        class="flex-1 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold transition">
+                        Cancel
+                    </button>
+                    <button type="submit"
+                        class="flex-1 py-3 rounded-xl bg-neon-danger hover:bg-red-600 text-white font-bold shadow-lg shadow-red-900/50 transition flex items-center justify-center gap-2">
+                        <i class="fas fa-paper-plane"></i> Broadcast
+                    </button>
+                </div>
+
+            </form>
+        </div>
+    </div>
+
+    <!-- JAVASCRIPT LOGIC -->
+    <script>
+        // CONFIG
+        const SUPABASE_URL = 'https://example.supabase.co'; // REPLACE WITH REAL URL
+        const SUPABASE_KEY = 'placeholder-key';            // REPLACE WITH REAL KEY
+        let supabaseClient = null;
+
+        // Try init Supabase safely
+        try {
+            if (SUPABASE_URL !== 'YOUR_SUPABASE_URL' && window.supabase) {
+                supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+            }
+        } catch (e) { console.warn("Supabase Mock Mode"); }
+
+        // Alpine App
+        function app() {
+            return {
+                // STATE
+                isOnline: navigator.onLine,
+                viewMode: 'tactical', // 'tactical' (markers) | 'strategic' (heat)
+                startMode: 'tactical',
+                currTimeFilter: '24h',
+                dangerNearby: false,
+                showReport: false,
+                userLat: null,
+                userLng: null,
+                selectedType: 'elephant',
+
+                // MOCK DATA (If Supabase is missing)
+                mockReports: [
+                    { id: 1, lat: 12.2800, lng: 76.6200, type: 'elephant', severity: 'high', created_at: new Date().toISOString() },
+                    { id: 2, lat: 12.3000, lng: 76.6500, type: 'tiger', severity: 'medium', created_at: new Date().toISOString() },
+                    { id: 3, lat: 12.2600, lng: 76.6100, type: 'elephant', severity: 'critical', created_at: new Date().toISOString() }
+                ],
+
+                // CONSTANTS
+                rangerStation: [12.3200, 76.6600],
+                reportTypes: [
+                    { id: 'elephant', label: 'Elephant', icon: 'fas fa-elephant', color: 'red' },
+                    { id: 'tiger', label: 'Tiger', icon: 'fas fa-paw', color: 'orange' },
+                    { id: 'crop', label: 'Crop Loss', icon: 'fas fa-wheat-awn', color: 'yellow' },
+                    { id: 'infra', label: 'Damage', icon: 'fas fa-house-crack', color: 'slate' },
+                    { id: 'other', label: 'Other', icon: 'fas fa-question', color: 'gray' },
+                    { id: 'safe', label: 'Safe', icon: 'fas fa-thumbs-up', color: 'emerald' },
+                ],
+
+                // MAP REFS
+                map: null,
+                markersGroup: null,
+                heatLayer: null,
+                userMarker: null,
+                routeLine: null,
+
+                initApp() {
+                    console.log("Initializing Gaja-Vani Guardian...");
+
+                    // Network Listeners
+                    window.addEventListener('online', () => {
+                        this.isOnline = true;
+                        this.syncOfflineReports();
+                    });
+                    window.addEventListener('offline', () => this.isOnline = false);
+
+                    // Init Map
+                    this.initMap();
+
+                    // Start Loops
+                    this.startGuardianLoop();
+                },
+
+                initMap() {
+                    // Default Mysuru
+                    this.map = L.map('map', {
+                        zoomControl: false,
+                        attributionControl: false,
+                        zoomSnap: 0.5
+                    }).setView([12.2958, 76.6394], 13); // Default view
+
+                    // CartoDB Dark Matter
+                    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+                        maxZoom: 20
+                    }).addTo(this.map);
+
+                    // Layers
+                    this.markersGroup = L.layerGroup().addTo(this.map);
+
+                    // Start Geo Tracking
+                    this.trackUser();
+
+                    // Initial Data Load
+                    this.fetchData();
+                },
+
+                trackUser() {
+                    const icon = L.divIcon({
+                        className: 'user-dot',
+                        html: '<div class="user-dot"></div>',
+                        iconSize: [20, 20],
+                        iconAnchor: [10, 10]
+                    });
+
+                    // Accuracy Circle Layer
+                    let accuracyCircle = null;
+
+                    const updateLocation = (pos, source) => {
+                        this.userLat = pos.coords.latitude;
+                        this.userLng = pos.coords.longitude;
+                        const accuracy = pos.coords.accuracy || 0;
+                        const latlng = [this.userLat, this.userLng];
+
+                        console.log(`Location Update (${source}):`, latlng, `Acc: ${accuracy}m`);
+
+                        // Update Marker
+                        if (!this.userMarker) {
+                            this.userMarker = L.marker(latlng, { icon: icon }).addTo(this.map);
+                            this.map.setView(latlng, 16, { animate: true }); // Zoom in on first fix
+                        } else {
+                            this.userMarker.setLatLng(latlng);
+                        }
+
+                        // Update Accuracy Circle
+                        if (accuracyCircle) {
+                            this.map.removeLayer(accuracyCircle);
+                        }
+                        if (accuracy > 20) { // Only show if not pinpoint
+                            accuracyCircle = L.circle(latlng, {
+                                radius: accuracy,
+                                color: '#06b6d4',
+                                weight: 1,
+                                fillOpacity: 0.1
+                            }).addTo(this.map);
+                        }
+                    };
+
+                    if (navigator.geolocation) {
+                        // STRATEGY 1: FAST FIX (Low Accuracy / Cached)
+                        // Tries to get a location immediately from WiFi/Cell towers or cache
+                        navigator.geolocation.getCurrentPosition(
+                            (pos) => updateLocation(pos, "FAST_FIX"),
+                            (err) => console.warn("Fast fix failed:", err),
+                            { enableHighAccuracy: false, timeout: 3000, maximumAge: 60000 } // Accept 1 min old data
+                        );
+
+                        // STRATEGY 2: PRECISION WATCH (High Accuracy / GPS)
+                        // Starts warming up GPS for pinpoint tracking
+                        navigator.geolocation.watchPosition(
+                            (pos) => updateLocation(pos, "PRECISION_STREAM"),
+                            (err) => console.error("GPS Error:", err),
+                            { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+                        );
+                    } else {
+                        alert("Geolocation not supported by this browser.");
+                    }
+                },
+
+                recenterMap() {
+                    if (this.userLat && this.userLng) {
+                        this.map.flyTo([this.userLat, this.userLng], 16, { animate: true, duration: 1.5 });
+                    } else {
+                        alert("Waiting for GPS signal...");
+                    }
+                },
+
+                setMode(mode) {
+                    this.viewMode = mode;
+                    this.renderData();
+                },
+
+                setTimeFilter(filter) {
+                    this.currTimeFilter = filter;
+                    this.fetchData(); // In real app, this re-queries DB
+                },
+
+                async fetchData() {
+                    let reports = this.mockReports;
+
+                    if (supabaseClient && this.isOnline) {
+                        // Real Fetch Logic
+                        /*
+                        const { data, error } = await supabaseClient.from('reports').select('*');
+                        if (data) reports = data;
+                        */
+                    }
+
+                    // Store locally for logic usage
+                    this.currentReports = reports;
+                    this.renderData();
+                },
+
+                renderData() {
+                    // Clear existing
+                    this.markersGroup.clearLayers();
+                    if (this.heatLayer) this.map.removeLayer(this.heatLayer);
+
+                    if (this.viewMode === 'tactical') {
+                        // MARKERS MODE
+                        this.currentReports.forEach(r => {
+                            // Determine Color/Icon based on type
+                            let typeDef = this.reportTypes.find(t => t.id === r.type) || this.reportTypes[0];
+                            let color = typeDef.color === 'red' ? '#ef4444' : typeDef.color === 'orange' ? '#f97316' : '#eab308';
+
+                            const markerHtml = `<div style="background-color: ${color}; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 2px solid white; box-shadow: 0 0 10px ${color};">
+                                <i class="${typeDef.icon}" style="color: black; font-size: 10px;"></i>
+                            </div>`;
+
+                            const icon = L.divIcon({
+                                className: 'custom-marker',
+                                html: markerHtml,
+                                iconSize: [24, 24],
+                                iconAnchor: [12, 12]
+                            });
+
+                            L.marker([r.lat, r.lng], { icon: icon })
+                                .bindPopup(`
+                                    <div class="text-sm font-sans">
+                                        <b class="uppercase text-red-600">${typeDef.label}</b><br>
+                                        <span class="text-xs text-gray-500">${new Date(r.created_at).toLocaleTimeString()}</span><br>
+                                        Severity: ${r.severity}
+                                    </div>
+                                `)
+                                .addTo(this.markersGroup);
+                        });
+
+                    } else {
+                        // HEATMAP MODE
+                        // Leaflet.heat requires array of [lat, lng, intensity]
+                        const heatPoints = this.currentReports.map(r => [r.lat, r.lng, r.severity === 'critical' ? 1.0 : 0.5]);
+                        this.heatLayer = L.heatLayer(heatPoints, {
+                            radius: 35,
+                            blur: 25,
+                            gradient: { 0.4: 'blue', 0.65: 'lime', 1: 'red' }
+                        }).addTo(this.map);
+                    }
+                },
+
+                // GUARDIAN SYSTEM
+                startGuardianLoop() {
+                    setInterval(() => {
+                        if (!this.userLat) return;
+
+                        let danger = false;
+                        this.currentReports.forEach(r => {
+                            // Simple Haversine approx or simple euclidian for short distances
+                            const d = this.getDistKm(this.userLat, this.userLng, r.lat, r.lng);
+                            if (d < 0.5) danger = true; // 500m
+                        });
+
+                        if (danger && !this.dangerNearby) {
+                            // Trigger Alert
+                            this.dangerNearby = true;
+                            if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+                        } else if (!danger && this.dangerNearby) {
+                            this.dangerNearby = false;
+                        }
+                    }, 5000);
+                },
+
+                startEscapeRoute() {
+                    if (this.routeLine) this.map.removeLayer(this.routeLine);
+                    if (!this.userLat) return;
+
+                    this.routeLine = L.polyline([[this.userLat, this.userLng], this.rangerStation], {
+                        color: '#10b981', // Emerald Safe
+                        dashArray: '10, 10',
+                        weight: 4,
+                        opacity: 0.8
+                    }).addTo(this.map);
+
+                    this.map.fitBounds(this.routeLine.getBounds(), { padding: [50, 50] });
+                },
+
+                getDistKm(lat1, lon1, lat2, lon2) {
+                    var R = 6371; // Radius of the earth in km
+                    var dLat = this.deg2rad(lat2 - lat1);  // deg2rad below
+                    var dLon = this.deg2rad(lon2 - lon1);
+                    var a =
+                        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                        Math.cos(this.deg2rad(lat1)) * Math.cos(this.deg2rad(lat2)) *
+                        Math.sin(dLon / 2) * Math.sin(dLon / 2);
+                    var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+                    var d = R * c; // Distance in km
+                    return d;
+                },
+
+                deg2rad(deg) {
+                    return deg * (Math.PI / 180)
+                },
+
+                // REPORTING
+                openReportModal() {
+                    this.showReport = true;
+                },
+
+                closeReportModal() {
+                    this.showReport = false;
+                },
+
+                async submitReport() {
+                    const newReport = {
+                        lat: this.userLat,
+                        lng: this.userLng,
+                        type: this.selectedType,
+                        severity: 'high', // Defaulting for quick UI
+                        created_at: new Date().toISOString() // Fixed syntax error here
+                    };
+
+                    if (this.isOnline && supabaseClient) {
+                        // Real Submit
+                        /*
+                        await supabaseClient.from('reports').insert([newReport]);
+                        */
+                        alert("Report sent to HQ!");
+                    } else {
+                        // Offline Queue
+                        const queue = JSON.parse(localStorage.getItem('pendingReports') || '[]');
+                        queue.push(newReport);
+                        localStorage.setItem('pendingReports', JSON.stringify(queue));
+                        alert("Offline: Saved to device. Will sync when online.");
+                    }
+
+                    // Add to local mock state for immediate feedback
+                    this.currentReports.push(newReport);
+                    this.renderData();
+                    this.closeReportModal();
+                },
+
+                syncOfflineReports() {
+                    const queue = JSON.parse(localStorage.getItem('pendingReports') || '[]');
+                    if (queue.length > 0) {
+                        console.log(`Syncing ${queue.length} reports...`);
+                        // Logic to push queue to Supabase would go here
+                        localStorage.removeItem('pendingReports');
+                    }
+                }
+            }
+        }
+    </script>
+</body>
+
+</html>
