@@ -1,17 +1,26 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import MapDisplay from '../Map/MapDisplay';
 import Sidebar from '../Overlay/Sidebar';
-import { sightings, incidents, dangerZones, villageStatus } from '../../data';
-import { LayoutGrid, Map as MapIcon, Settings } from 'lucide-react';
+import { useDashboardData } from '../../hooks/useDashboardData';
+import { LayoutGrid, Map as MapIcon, Settings, Navigation, AlertTriangle, CloudRain } from 'lucide-react';
 
 const DashboardLayout = () => {
 
+    const { sightings, incidents, dangerZones, villageStatus, loading } = useDashboardData();
     const [viewMode, setViewMode] = useState('normal'); // 'normal' | 'heatmap'
-    const [liveSightings, setLiveSightings] = useState(sightings);
+    const [liveSightings, setLiveSightings] = useState([]);
     const [showReportModal, setShowReportModal] = useState(false);
     const [showSettings, setShowSettings] = useState(false);
     const [userLocation, setUserLocation] = useState(null);
+    const [isFollowing, setIsFollowing] = useState(true);
     const [weatherData, setWeatherData] = useState({ windSpeed: null });
+
+    // Sync fetched sightings with local state for simulation
+    useEffect(() => {
+        if (sightings && sightings.length > 0) {
+            setLiveSightings(sightings);
+        }
+    }, [sightings]);
 
     // Geolocation Watcher
     React.useEffect(() => {
@@ -35,7 +44,7 @@ const DashboardLayout = () => {
             },
             {
                 enableHighAccuracy: true,
-                timeout: 60000,
+                timeout: 5000,
                 maximumAge: 0
             }
         );
@@ -86,31 +95,40 @@ const DashboardLayout = () => {
         return { text: 'WEAK (IP-BASED)', color: 'red' };
     };
 
-    return (
-        <div className="dashboard-layout" style={{ display: 'flex', flexDirection: 'column', height: '100vh', padding: '1rem', gap: '1rem' }}>
 
+    // Mobile Sidebar State
+    const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
+    return (
+        <div className="dashboard-layout">
             {/* Header */}
-            <header className="glass-panel" style={{ padding: '0.8rem 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <header className="glass-panel dashboard-header">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                    <div style={{ width: '40px', height: '40px', background: 'var(--color-secondary)', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <LayoutGrid color="var(--color-primary)" />
+                    <div className="menu-toggle mobile-menu-btn" onClick={() => setIsSidebarOpen(!isSidebarOpen)} style={{ cursor: 'pointer' }}>
+                        <div style={{ width: '24px', height: '2px', background: 'white', marginBottom: '5px' }}></div>
+                        <div style={{ width: '24px', height: '2px', background: 'white', marginBottom: '5px' }}></div>
+                        <div style={{ width: '24px', height: '2px', background: 'white' }}></div>
                     </div>
                     <div>
-                        <h1 style={{ fontSize: '1.2rem', letterSpacing: '2px', margin: 0 }}>GAJA-VANI <span style={{ color: 'var(--color-primary)' }}>MONITOR</span></h1>
-                        <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', letterSpacing: '1px' }}>SYSTEM ONLINE • MYSURU REGION</div>
+                        <h1 style={{ fontSize: '1.5rem', fontWeight: 'bold', color: 'var(--color-primary)', textTransform: 'uppercase', letterSpacing: '2px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                            <span style={{ fontSize: '1.8rem' }}>🐘</span> Gaja-Vani Monitor
+                        </h1>
+                        <div style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                            <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#00ff41', boxShadow: '0 0 5px #00ff41' }}></div>
+                            SYSTEM ONLINE • MYSURU REGION
+                        </div>
                     </div>
                 </div>
 
-                {/* View Toggle */}
-                <div className="view-toggle glass-panel" style={{ display: 'flex', padding: '4px', gap: '4px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)' }}>
+                <div className="view-toggle" style={{ display: 'flex', gap: '0.5rem' }}>
                     <button
                         onClick={() => setViewMode('normal')}
                         style={{
-                            background: viewMode === 'normal' ? 'var(--color-primary)' : 'transparent',
-                            color: viewMode === 'normal' ? 'black' : 'white',
-                            border: 'none',
                             padding: '0.5rem 1rem',
                             borderRadius: '8px',
+                            border: 'none',
+                            background: viewMode === 'normal' ? 'var(--color-primary)' : 'rgba(255,255,255,0.1)',
+                            color: viewMode === 'normal' ? 'black' : 'white',
                             cursor: 'pointer',
                             fontWeight: 'bold',
                             transition: 'all 0.3s'
@@ -121,154 +139,120 @@ const DashboardLayout = () => {
                     <button
                         onClick={() => setViewMode('heatmap')}
                         style={{
-                            background: viewMode === 'heatmap' ? 'var(--color-danger)' : 'transparent',
-                            color: viewMode === 'heatmap' ? 'white' : 'white',
-                            border: 'none',
                             padding: '0.5rem 1rem',
                             borderRadius: '8px',
+                            border: 'none',
+                            background: viewMode === 'heatmap' ? 'var(--color-accent)' : 'rgba(255,255,255,0.1)',
+                            color: viewMode === 'heatmap' ? 'black' : 'white',
                             cursor: 'pointer',
                             fontWeight: 'bold',
-                            transition: 'all 0.3s',
-                            textShadow: viewMode === 'heatmap' ? '0 0 10px rgba(0,0,0,0.5)' : 'none'
+                            transition: 'all 0.3s'
                         }}
                     >
-                        Heat Map View
+                        Heat Map
                     </button>
-                </div>
-
-                <div style={{ display: 'flex', gap: '1rem', position: 'relative' }}>
-                    <Settings
-                        size={20}
-                        className="hover-glow"
-                        style={{ cursor: 'pointer', transform: showSettings ? 'rotate(90deg)' : 'none', transition: 'transform 0.3s' }}
-                        onClick={() => setShowSettings(!showSettings)}
-                    />
-                    {showSettings && (
-                        <div className="glass-panel" style={{ position: 'absolute', top: '100%', right: 0, marginTop: '0.5rem', padding: '1rem', width: '200px', zIndex: 1000 }}>
-                            <h4 style={{ marginBottom: '0.5rem', color: 'var(--color-primary)' }}>Settings</h4>
-                            <div style={{ fontSize: '0.8rem', marginBottom: '0.5rem' }}>Notification Sound: ON</div>
-                            <div style={{ fontSize: '0.8rem', marginBottom: '0.5rem' }}>Data Refresh: 2s</div>
-                            <div style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', cursor: 'pointer' }}>Log Out</div>
-                        </div>
-                    )}
-                    <div style={{ width: '30px', height: '30px', background: 'var(--color-primary)', borderRadius: '50%', boxShadow: '0 0 10px var(--color-primary)' }}></div>
                 </div>
             </header>
 
             {/* Main Content */}
-            <div style={{ flex: 1, display: 'flex', gap: '1rem', overflow: 'hidden' }}>
-                {/* Map Area */}
-                <div style={{ flex: 1, position: 'relative' }}>
-                    <MapDisplay viewMode={viewMode} data={{ sightings: liveSightings, dangerZones }} userLocation={userLocation} />
+            <div className="dashboard-content">
+                <div className="map-section glass-panel">
+                    <div className="map-wrapper">
+                        <MapDisplay
+                            viewMode={viewMode}
+                            data={{ sightings: liveSightings, dangerZones }}
+                            userLocation={userLocation}
+                            isFollowing={isFollowing}
+                            onMapDrag={() => setIsFollowing(false)}
+                        />
+                    </div>
 
-                    {/* Coordinates Display Panel */}
-                    <div style={{
+                    {/* FAB for Reporting */}
+                    <button
+                        className="fab-report"
+                        onClick={() => setShowReportModal(true)}
+                        title="Report Incident"
+                    >
+                        <AlertTriangle size={24} />
+                    </button>
+
+                    {/* Coordinates Panel */}
+                    <div className="coordinates-panel glass-panel" style={{
                         position: 'absolute',
                         top: '1rem',
                         right: '1rem',
-                        background: 'rgba(0, 0, 0, 0.6)',
-                        backdropFilter: 'blur(10px)',
-                        padding: '1rem',
-                        borderRadius: '12px',
-                        border: '1px solid rgba(255, 255, 255, 0.1)',
+                        padding: '0.8rem',
                         zIndex: 1000,
-                        color: 'white',
-                        minWidth: '220px'
+                        minWidth: '150px'
                     }}>
-                        <h4 style={{ margin: '0 0 0.5rem 0', fontSize: '0.9rem', color: 'var(--color-primary)', display: 'flex', alignItems: 'center', gap: '0.5rem', justifyContent: 'space-between' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                <div style={{ width: '8px', height: '8px', background: 'var(--color-primary)', borderRadius: '50%', boxShadow: '0 0 5px var(--color-primary)' }}></div>
-                                LIVE TRAJECTORY
-                            </div>
-                            {userLocation && (
-                                <span style={{ fontSize: '0.6rem', color: getSignalQuality(userLocation.accuracy).color, border: `1px solid ${getSignalQuality(userLocation.accuracy).color}`, padding: '2px 4px', borderRadius: '4px' }}>
-                                    {getSignalQuality(userLocation.accuracy).text}
-                                </span>
-                            )}
-                        </h4>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', fontSize: '0.8rem' }}>
-                            <div>
-                                <div style={{ color: 'var(--color-text-muted)', fontSize: '0.7rem' }}>LATITUDE</div>
-                                <div>{userLocation?.lat.toFixed(6) || '--.--'}</div>
-                            </div>
-                            <div>
-                                <div style={{ color: 'var(--color-text-muted)', fontSize: '0.7rem' }}>LONGITUDE</div>
-                                <div>{userLocation?.lng.toFixed(6) || '--.--'}</div>
-                            </div>
-                            <div>
-                                <div style={{ color: 'var(--color-text-muted)', fontSize: '0.7rem' }}>ACCURACY</div>
-                                <div>{userLocation ? `±${Math.round(userLocation.accuracy)}m` : '--'}</div>
-                            </div>
-                            <div>
-                                <div style={{ color: 'var(--color-text-muted)', fontSize: '0.7rem' }}>SPEED</div>
-                                <div>{userLocation?.speed ? `${(userLocation.speed * 3.6).toFixed(1)} km/h` : '0 km/h'}</div>
-                            </div>
-                            <div>
-                                <div style={{ color: 'var(--color-text-muted)', fontSize: '0.7rem' }}>WIND SPEED</div>
-                                <div style={{ color: '#00d4ff' }}>{weatherData.windSpeed !== null ? `${weatherData.windSpeed} km/h` : '--'}</div>
-                            </div>
+                        <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', marginBottom: '0.2rem' }}>YOUR LOCATION</div>
+                        <div style={{ fontSize: '0.9rem', fontFamily: 'monospace' }}>
+                            {userLocation ? `${userLocation.lat.toFixed(6)}, ${userLocation.lng.toFixed(6)}` : 'Locating...'}
+                        </div>
+                        <div style={{ fontSize: '0.7rem', color: 'var(--color-primary)', marginTop: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                            <CloudRain size={12} /> {weatherData.windSpeed ? `${weatherData.windSpeed} km/h` : 'Loading...'}
                         </div>
                     </div>
                 </div>
 
-                {/* Sidebar Overlays */}
-                <Sidebar incidents={incidents} villageStatus={villageStatus} />
-
-                {/* FAB - Report Incident */}
-                <button
-                    onClick={() => setShowReportModal(true)}
-                    style={{
-                        position: 'absolute',
-                        bottom: '2rem',
-                        right: '25rem', // Positioned left of sidebar
-                        width: '60px',
-                        height: '60px',
-                        borderRadius: '50%',
-                        background: 'var(--color-danger)',
-                        border: 'none',
-                        boxShadow: '0 0 20px var(--color-danger-glow)',
-                        color: 'white',
-                        fontSize: '1.5rem',
-                        cursor: 'pointer',
-                        zIndex: 1000,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center'
-                    }}
-                >
-                    +
-                </button>
+                <Sidebar
+                    incidents={incidents}
+                    villageStatus={villageStatus}
+                    isOpen={isSidebarOpen}
+                    onClose={() => setIsSidebarOpen(false)}
+                />
             </div>
 
-            {/* Report Modal */}
+            {/* Modal */}
             {showReportModal && (
-                <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(5px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000 }}>
-                    <div className="glass-panel" style={{ width: '400px', padding: '2rem' }}>
-                        <h2 style={{ color: 'var(--color-primary)', marginBottom: '1rem' }}>Report Incident</h2>
+                <div style={{
+                    position: 'fixed', top: 0, left: 0, width: '100%', height: '100%',
+                    background: 'rgba(0,0,0,0.8)', zIndex: 2000,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center'
+                }}>
+                    <div className="glass-panel" style={{ width: '90%', maxWidth: '500px', padding: '2rem' }}>
+                        <h2 style={{ color: 'var(--color-primary)', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                            <AlertTriangle /> Report Sighting
+                        </h2>
 
-                        {/* Auto-filled Location */}
                         <div style={{ marginBottom: '1rem' }}>
-                            <label style={{ display: 'block', fontSize: '0.8rem', color: 'var(--color-text-muted)', marginBottom: '0.3rem' }}>Detected Location</label>
+                            <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--color-text-muted)' }}>Location</label>
                             <input
                                 type="text"
-                                value={userLocation ? `${userLocation.lat.toFixed(6)}, ${userLocation.lng.toFixed(6)}` : 'Fetching location...'}
-                                readOnly
-                                style={{ width: '100%', padding: '0.5rem', background: 'rgba(0,0,0,0.3)', border: '1px solid var(--color-primary)', color: 'var(--color-primary)', fontWeight: 'bold' }}
+                                value={userLocation ? `${userLocation.lat}, ${userLocation.lng}` : 'Unknown'}
+                                disabled
+                                style={{ width: '100%', padding: '0.8rem', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.2)', color: 'white', borderRadius: '4px' }}
                             />
                         </div>
 
-                        <select style={{ width: '100%', padding: '0.5rem', marginBottom: '1rem', background: 'rgba(0,0,0,0.3)', border: '1px solid var(--color-border)', color: 'white' }}>
-                            <option>Elephant Sighting</option>
-                            <option>Conflict/Damage</option>
-                        </select>
-                        <div style={{ display: 'flex', gap: '1rem' }}>
-                            <button onClick={() => setShowReportModal(false)} style={{ flex: 1, padding: '0.5rem', background: 'transparent', border: '1px solid white', color: 'white', borderRadius: '8px', cursor: 'pointer' }}>Cancel</button>
-                            <button onClick={() => { alert(`Report Submitted @ ${userLocation ? `${userLocation.lat}, ${userLocation.lng}` : 'Unknown Location'}`); setShowReportModal(false); }} style={{ flex: 1, padding: '0.5rem', background: 'var(--color-primary)', border: 'none', color: 'black', fontWeight: 'bold', borderRadius: '8px', cursor: 'pointer' }}>Submit</button>
+                        <div style={{ marginBottom: '1.5rem' }}>
+                            <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--color-text-muted)' }}>Description (Optional)</label>
+                            <textarea
+                                placeholder="Describe the elephant activity..."
+                                style={{ width: '100%', padding: '0.8rem', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.2)', color: 'white', borderRadius: '4px', minHeight: '100px' }}
+                            ></textarea>
+                        </div>
+
+                        <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end' }}>
+                            <button
+                                onClick={() => setShowReportModal(false)}
+                                style={{ padding: '0.8rem 1.5rem', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.2)', background: 'transparent', color: 'white', cursor: 'pointer' }}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={() => {
+                                    alert('Report Submitted! Nearby villages will be alerted.');
+                                    setShowReportModal(false);
+                                }}
+                                style={{ padding: '0.8rem 1.5rem', borderRadius: '4px', border: 'none', background: 'var(--color-danger)', color: 'white', cursor: 'pointer', fontWeight: 'bold', boxShadow: '0 0 10px var(--color-danger-glow)' }}
+                            >
+                                Submit Alert
+                            </button>
                         </div>
                     </div>
                 </div>
             )}
-
         </div>
     );
 };

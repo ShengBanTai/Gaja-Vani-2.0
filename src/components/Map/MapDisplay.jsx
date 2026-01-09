@@ -33,29 +33,66 @@ const RedPointerIcon = L.divIcon({
 // Ideally we'd use a custom SVG. For now, we use standard marker but maybe color it?
 // Let's create a custom div icon later.
 
-function MapEffects({ viewMode, userLocation }) {
+function MapEffects({ viewMode, userLocation, isFollowing, onMapDrag, data }) {
     const map = useMap();
 
     React.useEffect(() => {
-        // Force invalidation to ensure map renders correctly in new layout
         map.invalidateSize();
     }, [map]);
 
-    // Fly to user location on first fix
+    // Fly to user location smoothly if following is enabled
     React.useEffect(() => {
-        if (userLocation) {
-            map.flyTo([userLocation.lat, userLocation.lng], 14, {
+        if (userLocation && isFollowing) {
+            map.flyTo([userLocation.lat, userLocation.lng], 16, { // Zoomed in a bit more for "active tracking" feel
                 animate: true,
-                duration: 2
+                duration: 1.5, // Smoother transition
+                easeLinearity: 0.25
             });
         }
-    }, [map, userLocation?.lat, userLocation?.lng]);
+    }, [map, userLocation?.lat, userLocation?.lng, isFollowing]);
+
+    // Auto-fit bounds on data load (only once or when viewMode changes)
+    React.useEffect(() => {
+        // Collect all points
+        const points = [];
+        if (userLocation) points.push([userLocation.lat, userLocation.lng]);
+
+        // Add Sightings
+        if (data?.sightings) {
+            data.sightings.forEach(s => points.push([s.lat, s.lng]));
+        }
+
+        // Add Danger Zones
+        if (data?.dangerZones) {
+            data.dangerZones.forEach(z => points.push([z.lat, z.lng]));
+        }
+
+        if (points.length > 1) { // Only fit if we have interesting data points
+            const bounds = L.latLngBounds(points);
+            // Pad the bounds so markers aren't on the edge
+            map.flyToBounds(bounds, { padding: [50, 50], duration: 1.5 });
+        }
+    }, [map, data, viewMode]); // Re-run when data or viewMode changes
+
+    // Listen for manual drag to disable following
+    React.useEffect(() => {
+        if (!onMapDrag) return;
+
+        const handleDrag = () => {
+            onMapDrag();
+        };
+
+        map.on('dragstart', handleDrag);
+        return () => {
+            map.off('dragstart', handleDrag);
+        };
+    }, [map, onMapDrag]);
 
     return null;
 }
 
-const MapDisplay = ({ viewMode, data, userLocation }) => {
-    const position = [12.2958, 76.6394]; // Mysuru
+const MapDisplay = ({ viewMode, data, userLocation, isFollowing, onMapDrag }) => {
+    const position = [12.3366, 76.6187]; // VVCE M Block
 
     return (
         <div className="map-wrapper" style={{ height: '100%', width: '100%', borderRadius: '16px', overflow: 'hidden', border: '1px solid var(--color-border)' }}>
@@ -82,7 +119,13 @@ const MapDisplay = ({ viewMode, data, userLocation }) => {
                     />
                 )}
 
-                <MapEffects viewMode={viewMode} userLocation={userLocation} />
+                <MapEffects
+                    viewMode={viewMode}
+                    userLocation={userLocation}
+                    isFollowing={isFollowing}
+                    onMapDrag={onMapDrag}
+                    data={data}
+                />
 
                 {/* User Location Marker & Circle */}
                 {userLocation && (
